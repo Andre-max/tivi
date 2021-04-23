@@ -105,7 +105,7 @@ android {
     }
 
     composeOptions {
-        kotlinCompilerExtensionVersion Versions.compose
+        kotlinCompilerExtensionVersion libs.versions.compose.get()
     }
 
     testOptions {
@@ -172,50 +172,49 @@ dependencies {
     implementation project(':ui-search')
     implementation project(':ui-settings')
 
-    implementation Libs.AndroidX.Lifecycle.livedata
-    implementation Libs.AndroidX.Lifecycle.viewmodel
 
-    implementation Libs.AndroidX.Activity.compose
+    implementation libs.androidx.lifecycle.viewmodel.ktx
 
-    implementation Libs.AndroidX.emoji
-    implementation Libs.AndroidX.Fragment.fragmentKtx
-    implementation Libs.AndroidX.Navigation.fragment
+    implementation libs.androidx.activity.compose
 
-    implementation Libs.AndroidX.Compose.foundation
-    implementation Libs.AndroidX.Compose.ui
-    implementation Libs.AndroidX.Compose.layout
-    implementation Libs.AndroidX.Compose.material
-    implementation Libs.AndroidX.Compose.animation
-    implementation Libs.AndroidX.Compose.tooling
-    implementation Libs.AndroidX.Compose.livedata
+    implementation libs.androidx.navigation.compose
 
-    implementation Libs.Accompanist.insets
+    implementation libs.androidx.emoji
 
-    implementation Libs.threeTenAbp
+    implementation libs.compose.foundation.foundation
+    implementation libs.compose.foundation.layout
+    implementation libs.compose.material.material
+    implementation libs.compose.animation.animation
+    implementation libs.compose.ui.tooling
+    implementation libs.compose.ui.viewbinding
 
-    implementation Libs.timber
+    implementation libs.accompanist.insets
 
-    implementation Libs.Kotlin.stdlib
+    implementation libs.threeTenAbp
 
-    implementation Libs.Coroutines.core
-    implementation Libs.Coroutines.android
+    implementation libs.timber
 
-    implementation Libs.Hilt.library
-    kapt Libs.Hilt.compiler
+    implementation libs.kotlin.stdlib
 
-    implementation Libs.AndroidX.Hilt.work
-    kapt Libs.AndroidX.Hilt.compiler
+    implementation libs.kotlin.coroutines.core
+    implementation libs.kotlin.coroutines.android
 
-    implementation Libs.Google.crashlytics
-    implementation Libs.Google.analytics
+    implementation libs.hilt.library
+    implementation libs.androidx.hilt.compose
+    kapt libs.hilt.compiler
 
-    debugImplementation Libs.leakCanary
+    implementation libs.androidx.hilt.work
+    kapt libs.androidx.hilt.compiler
 
-    testImplementation Libs.junit
-    testImplementation Libs.robolectric
-    testImplementation Libs.AndroidX.Test.core
-    testImplementation Libs.AndroidX.Test.rules
-    testImplementation Libs.AndroidX.Test.espresso
+    implementation libs.google.crashlytics
+    implementation libs.google.analytics
+
+    debugImplementation libs.leakCanary
+
+    testImplementation libs.junit
+    testImplementation libs.robolectric
+    testImplementation libs.androidx.test.core
+    testImplementation libs.androidx.test.rules
 }
 
 android.applicationVariants.all { variant ->

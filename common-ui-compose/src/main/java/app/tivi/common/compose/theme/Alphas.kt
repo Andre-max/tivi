@@ -1,5 +1,5 @@
 /*
- * Copyright 2020 Google LLC
+ * Copyright 2021 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,14 +14,16 @@
  * limitations under the License.
  */
 
-package app.tivi.extensions
+package app.tivi.common.compose.theme
 
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
+import androidx.compose.material.MaterialTheme
+import androidx.compose.runtime.Composable
 
-inline fun <VM : ViewModel> viewModelProviderFactoryOf(
-    crossinline f: () -> VM
-): ViewModelProvider.Factory = object : ViewModelProvider.Factory {
-    @Suppress("UNCHECKED_CAST")
-    override fun <T : ViewModel?> create(modelClass: Class<T>): T = f() as T
+object AppBarAlphas {
+    @Composable
+    fun translucentBarAlpha(): Float = when {
+        // We use a more opaque alpha in light theme
+        MaterialTheme.colors.isLight -> 0.97f
+        else -> 0.94f
+    }
 }

@@ -16,10 +16,9 @@
 
 package app.tivi.account
 
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -43,6 +42,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -51,16 +52,57 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import app.tivi.common.compose.SimpleFlowRow
+import androidx.hilt.navigation.compose.hiltNavGraphViewModel
+import androidx.navigation.NavController
 import app.tivi.common.compose.foregroundColor
 import app.tivi.data.entities.TraktUser
 import app.tivi.trakt.TraktAuthState
-import com.google.accompanist.coil.CoilImage
+import com.google.accompanist.coil.rememberCoilPainter
+import com.google.accompanist.flowlayout.FlowMainAxisAlignment
+import com.google.accompanist.flowlayout.FlowRow
 import org.threeten.bp.OffsetDateTime
 import org.threeten.bp.ZoneOffset
 
 @Composable
 fun AccountUi(
+    navController: NavController,
+    onOpenSettings: () -> Unit,
+) {
+    AccountUi(
+        navController = navController,
+        viewModel = hiltNavGraphViewModel(),
+        onOpenSettings = onOpenSettings,
+    )
+}
+
+@Composable
+internal fun AccountUi(
+    navController: NavController,
+    viewModel: AccountUiViewModel,
+    onOpenSettings: () -> Unit,
+) {
+    val viewState by viewModel.state.collectAsState()
+
+    val loginLauncher = rememberLauncherForActivityResult(
+        viewModel.buildLoginActivityResult()
+    ) { result ->
+        if (result != null) {
+            viewModel.onLoginResult(result)
+        }
+    }
+
+    AccountUi(viewState) { action ->
+        when (action) {
+            is AccountUiAction.Close -> navController.popBackStack()
+            is AccountUiAction.OpenSettings -> onOpenSettings()
+            is AccountUiAction.Login -> loginLauncher.launch(Unit)
+            is AccountUiAction.Logout -> viewModel.logout()
+        }
+    }
+}
+
+@Composable
+internal fun AccountUi(
     viewState: AccountUiViewState,
     actioner: (AccountUiAction) -> Unit
 ) {
@@ -76,30 +118,27 @@ fun AccountUi(
                 Spacer(modifier = Modifier.height(16.dp))
             }
 
-            Box(
+            FlowRow(
+                mainAxisAlignment = FlowMainAxisAlignment.End,
+                mainAxisSpacing = 8.dp,
+                crossAxisSpacing = 4.dp,
                 modifier = Modifier
                     .padding(horizontal = 16.dp)
                     .wrapContentSize(Alignment.CenterEnd)
                     .align(Alignment.End)
             ) {
-                SimpleFlowRow(
-                    mainAxisArrangement = Arrangement.End,
-                    mainAxisSpacing = 8.dp,
-                    crossAxisSpacing = 4.dp,
-                ) {
-                    if (viewState.authState == TraktAuthState.LOGGED_OUT) {
-                        OutlinedButton(onClick = { actioner(Login) }) {
-                            Text(text = stringResource(R.string.login))
-                        }
-                    } else {
-                        TextButton(onClick = { actioner(Login) }) {
-                            Text(text = stringResource(R.string.refresh_credentials))
-                        }
+                if (viewState.authState == TraktAuthState.LOGGED_OUT) {
+                    OutlinedButton(onClick = { actioner(AccountUiAction.Login) }) {
+                        Text(text = stringResource(R.string.login))
                     }
+                } else {
+                    TextButton(onClick = { actioner(AccountUiAction.Login) }) {
+                        Text(text = stringResource(R.string.refresh_credentials))
+                    }
+                }
 
-                    OutlinedButton(onClick = { actioner(Logout) }) {
-                        Text(text = stringResource(R.string.logout))
-                    }
+                OutlinedButton(onClick = { actioner(AccountUiAction.Logout) }) {
+                    Text(text = stringResource(R.string.logout))
                 }
             }
 
@@ -115,7 +154,7 @@ fun AccountUi(
                 label = stringResource(R.string.settings_title),
                 icon = Icons.Default.Settings,
                 contentDescription = stringResource(R.string.settings_title),
-                onClick = { actioner(OpenSettings) }
+                onClick = { actioner(AccountUiAction.OpenSettings) }
             )
 
             Spacer(
@@ -138,13 +177,12 @@ private fun UserRow(
     ) {
         val avatarUrl = user.avatarUrl
         if (avatarUrl != null) {
-            CoilImage(
-                data = avatarUrl,
+            Image(
+                painter = rememberCoilPainter(avatarUrl, fadeIn = true),
                 contentDescription = stringResource(R.string.cd_profile_pic, user.name),
-                fadeIn = true,
                 modifier = Modifier
                     .size(40.dp)
-                    .clip(RoundedCornerShape(50))
+                    .clip(RoundedCornerShape(50)),
             )
         }
 

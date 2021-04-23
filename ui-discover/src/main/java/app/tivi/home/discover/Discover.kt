@@ -17,9 +17,9 @@
 package app.tivi.home.discover
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.Crossfade
 import androidx.compose.animation.ExperimentalAnimationApi
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -42,24 +42,27 @@ import androidx.compose.material.Text
 import androidx.compose.material.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.FirstBaseline
-import androidx.compose.ui.layout.onSizeChanged
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltNavGraphViewModel
+import androidx.navigation.NavController
+import androidx.navigation.compose.navigate
+import app.tivi.Screen
 import app.tivi.common.compose.AutoSizedCircularProgressIndicator
 import app.tivi.common.compose.Carousel
+import app.tivi.common.compose.LocalTiviTextCreator
 import app.tivi.common.compose.PosterCard
 import app.tivi.common.compose.RefreshButton
+import app.tivi.common.compose.Scaffold
 import app.tivi.common.compose.UserProfileButton
 import app.tivi.common.compose.itemSpacer
+import app.tivi.common.compose.theme.AppBarAlphas
 import app.tivi.data.entities.Episode
 import app.tivi.data.entities.Season
 import app.tivi.data.entities.TiviShow
@@ -68,22 +71,79 @@ import app.tivi.data.entities.TraktUser
 import app.tivi.data.resultentities.EntryWithShow
 import app.tivi.trakt.TraktAuthState
 import com.google.accompanist.insets.statusBarsPadding
+import com.google.accompanist.swiperefresh.SwipeRefresh
+import com.google.accompanist.swiperefresh.SwipeRefreshIndicator
+import com.google.accompanist.swiperefresh.rememberSwipeRefreshState
 
 @Composable
-fun Discover(
+fun Discover(navController: NavController) {
+    Discover(
+        viewModel = hiltNavGraphViewModel(),
+        navController = navController,
+    )
+}
+
+@Composable
+internal fun Discover(
+    viewModel: DiscoverViewModel,
+    navController: NavController,
+) {
+    val viewState by viewModel.state.collectAsState()
+    Discover(state = viewState) { action ->
+        when (action) {
+            DiscoverAction.LoginAction,
+            DiscoverAction.OpenUserDetails -> navController.navigate(Screen.Account.route)
+            is DiscoverAction.OpenShowDetails -> {
+                navController.navigate("show/${action.showId}")
+                // If we have an episodeId, we also open that
+                if (action.episodeId != null) {
+                    navController.navigate("episode/${action.episodeId}")
+                }
+            }
+            DiscoverAction.OpenTrendingShows -> navController.navigate(Screen.Trending.route)
+            DiscoverAction.OpenPopularShows -> navController.navigate(Screen.Popular.route)
+            DiscoverAction.OpenRecommendedShows -> {
+                navController.navigate(Screen.RecommendedShows.route)
+            }
+            else -> viewModel.submitAction(action)
+        }
+    }
+}
+
+@Composable
+internal fun Discover(
     state: DiscoverViewState,
     actioner: (DiscoverAction) -> Unit
 ) {
-    Surface(Modifier.fillMaxSize()) {
-        Box(Modifier.fillMaxSize()) {
-            var appBarHeight by remember { mutableStateOf(0) }
-
-            LazyColumn(Modifier.fillMaxSize()) {
-                item {
-                    val height = with(LocalDensity.current) { appBarHeight.toDp() }
-                    Spacer(Modifier.height(height))
-                }
-
+    Scaffold(
+        topBar = {
+            DiscoverAppBar(
+                loggedIn = state.authState == TraktAuthState.LOGGED_IN,
+                user = state.user,
+                refreshing = state.refreshing,
+                onRefreshActionClick = { actioner(DiscoverAction.RefreshAction) },
+                onUserActionClick = { actioner(DiscoverAction.OpenUserDetails) },
+                modifier = Modifier.fillMaxWidth()
+            )
+        },
+        modifier = Modifier.fillMaxSize(),
+    ) { paddingValues ->
+        SwipeRefresh(
+            state = rememberSwipeRefreshState(state.refreshing),
+            onRefresh = { actioner(DiscoverAction.RefreshAction) },
+            indicatorPadding = paddingValues,
+            indicator = { state, trigger ->
+                SwipeRefreshIndicator(
+                    state = state,
+                    refreshTriggerDistance = trigger,
+                    scale = true
+                )
+            }
+        ) {
+            LazyColumn(
+                contentPadding = paddingValues,
+                modifier = Modifier.fillMaxSize(),
+            ) {
                 itemSpacer(16.dp)
 
                 state.nextEpisodeWithShowToWatched?.let { nextEpisodeToWatch ->
@@ -96,14 +156,16 @@ fun Discover(
                             poster = nextEpisodeToWatch.poster,
                             season = nextEpisodeToWatch.season,
                             episode = nextEpisodeToWatch.episode,
-                            modifier = Modifier.fillMaxWidth().clickable {
-                                actioner(
-                                    OpenShowDetails(
-                                        showId = nextEpisodeToWatch.show.id,
-                                        episodeId = nextEpisodeToWatch.episode.id
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    actioner(
+                                        DiscoverAction.OpenShowDetails(
+                                            showId = nextEpisodeToWatch.show.id,
+                                            episodeId = nextEpisodeToWatch.episode.id
+                                        )
                                     )
-                                )
-                            }
+                                }
                         )
                     }
 
@@ -115,8 +177,8 @@ fun Discover(
                         items = state.trendingItems,
                         title = stringResource(R.string.discover_trending_title),
                         refreshing = state.trendingRefreshing,
-                        onItemClick = { actioner(OpenShowDetails(it.id)) },
-                        onMoreClick = { actioner(OpenTrendingShows) }
+                        onItemClick = { actioner(DiscoverAction.OpenShowDetails(it.id)) },
+                        onMoreClick = { actioner(DiscoverAction.OpenTrendingShows) }
                     )
                 }
 
@@ -125,8 +187,8 @@ fun Discover(
                         items = state.recommendedItems,
                         title = stringResource(R.string.discover_recommended_title),
                         refreshing = state.recommendedRefreshing,
-                        onItemClick = { actioner(OpenShowDetails(it.id)) },
-                        onMoreClick = { actioner(OpenRecommendedShows) }
+                        onItemClick = { actioner(DiscoverAction.OpenShowDetails(it.id)) },
+                        onMoreClick = { actioner(DiscoverAction.OpenRecommendedShows) }
                     )
                 }
 
@@ -135,24 +197,13 @@ fun Discover(
                         items = state.popularItems,
                         title = stringResource(R.string.discover_popular_title),
                         refreshing = state.popularRefreshing,
-                        onItemClick = { actioner(OpenShowDetails(it.id)) },
-                        onMoreClick = { actioner(OpenPopularShows) }
+                        onItemClick = { actioner(DiscoverAction.OpenShowDetails(it.id)) },
+                        onMoreClick = { actioner(DiscoverAction.OpenPopularShows) }
                     )
                 }
 
                 itemSpacer(16.dp)
             }
-
-            DiscoverAppBar(
-                loggedIn = state.authState == TraktAuthState.LOGGED_IN,
-                user = state.user,
-                refreshing = state.refreshing,
-                onRefreshActionClick = { actioner(RefreshAction) },
-                onUserActionClick = { actioner(OpenUserDetails) },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .onSizeChanged { appBarHeight = it.height }
-            )
         }
     }
 }
@@ -171,14 +222,16 @@ private fun NextEpisodeToWatch(
                 PosterCard(
                     show = show,
                     poster = poster,
-                    modifier = Modifier.width(64.dp).aspectRatio(2 / 3f)
+                    modifier = Modifier
+                        .width(64.dp)
+                        .aspectRatio(2 / 3f)
                 )
 
                 Spacer(Modifier.width(16.dp))
             }
 
             Column(Modifier.align(Alignment.CenterVertically)) {
-                val textCreator = LocalDiscoverTextCreator.current
+                val textCreator = LocalTiviTextCreator.current
                 CompositionLocalProvider(LocalContentAlpha provides ContentAlpha.disabled) {
                     Text(
                         text = textCreator.seasonEpisodeTitleText(season, episode),
@@ -231,7 +284,9 @@ private fun <T : EntryWithShow<*>> CarouselWithHeader(
             EntryShowCarousel(
                 items = items,
                 onItemClick = onItemClick,
-                modifier = Modifier.height(192.dp).fillMaxWidth()
+                modifier = Modifier
+                    .height(192.dp)
+                    .fillMaxWidth()
             )
         }
         // TODO empty state
@@ -286,7 +341,9 @@ private fun Header(
         AnimatedVisibility(visible = loading) {
             AutoSizedCircularProgressIndicator(
                 color = MaterialTheme.colors.secondary,
-                modifier = Modifier.padding(8.dp).size(16.dp)
+                modifier = Modifier
+                    .padding(8.dp)
+                    .size(16.dp)
             )
         }
 
@@ -295,8 +352,6 @@ private fun Header(
         Spacer(Modifier.width(16.dp))
     }
 }
-
-private const val TranslucentAppBarAlpha = 0.93f
 
 @Composable
 private fun DiscoverAppBar(
@@ -308,7 +363,7 @@ private fun DiscoverAppBar(
     modifier: Modifier = Modifier
 ) {
     Surface(
-        color = MaterialTheme.colors.surface.copy(alpha = TranslucentAppBarAlpha),
+        color = MaterialTheme.colors.surface.copy(alpha = AppBarAlphas.translucentBarAlpha()),
         contentColor = MaterialTheme.colors.onSurface,
         elevation = 4.dp,
         modifier = modifier
@@ -328,11 +383,18 @@ private fun DiscoverAppBar(
             Spacer(Modifier.weight(1f))
 
             CompositionLocalProvider(LocalContentAlpha provides ContentAlpha.medium) {
-                RefreshButton(
-                    onClick = onRefreshActionClick,
-                    refreshing = refreshing,
-                    modifier = Modifier.align(Alignment.CenterVertically),
-                )
+                // This button refresh allows screen-readers, etc to trigger a refresh.
+                // We only show the button to trigger a refresh, not to indicate that
+                // we're currently refreshing, otherwise we have 4 indicators showing the
+                // same thing.
+                Crossfade(
+                    targetState = refreshing,
+                    modifier = Modifier.align(Alignment.CenterVertically)
+                ) {
+                    if (!refreshing) {
+                        RefreshButton(onClick = onRefreshActionClick)
+                    }
+                }
 
                 UserProfileButton(
                     loggedIn = loggedIn,
